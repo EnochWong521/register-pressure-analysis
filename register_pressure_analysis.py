@@ -1,3 +1,5 @@
+import sys
+
 # opcode to instruction type
 R_TYPE = 0b0110011
 I_TYPE_ALU = 0b0010011
@@ -35,6 +37,7 @@ def decode_fields(inst_bin: str):
     uses = set()
     defs = set()
 
+    # decode instruction based on opcode
     if opcode == R_TYPE:
         defs.add(rd)
         uses.add(rs1); uses.add(rs2)
@@ -90,30 +93,76 @@ def compute_pressure(trace_rows):
 def average_pressure(pressure):
     return sum(pressure) / len(pressure) if pressure else 0.0
 
-def max_pressure_and_cycle(pressure):
+def find_max_pressure(pressure):
     if not pressure:
         return 0, None
     mx = max(pressure)
-    cycle = pressure.index(mx)  # first occurrence
+    # note this is the first occurence of the max pressure
+    cycle = pressure.index(mx)
     return mx, cycle
 
-def min_pressure(pressure):
-    return min(pressure) if pressure else 0
+def find_min_pressure(pressure):
+    if not pressure:
+        return 0, None
+    mn = min(pressure)
+    # first occurence
+    cycle = pressure.index(mn) 
+    return mn, cycle
+
+# file output for per cycle register pressure in CSV format 
+def write_pressure_csv(trace_rows, pressure, filename):
+    with open(filename, "w") as f:
+        f.write("cycle,pressure\n")
+
+        for i in range(len(pressure)):
+            cycle = trace_rows[i]["Cycle"]
+            f.write(f"{cycle},{pressure[i]}\n")
+
+# plot pressure vs cycle for visualization
+def plot_pressure(pressure):
+    import matplotlib.pyplot as plt
+
+    cycles = list(range(len(pressure)))
+
+    plt.figure()
+    plt.plot(cycles, pressure)
+    plt.xlabel("Cycle")
+    plt.ylabel("Register Pressure")
+    plt.title("Register Pressure per Cycle")
+    plt.show()
 
 def main():
-    trace = parse_trace("HW1_trace_rv32i.txt")
+    if len(sys.argv) < 2:
+        print("Usage: python reg_pressure.py <trace_file_path>")
+        sys.exit(1)
+
+    trace_path = sys.argv[1]
+
+    trace = parse_trace(trace_path)
     pressure = compute_pressure(trace)
 
-    avg = average_pressure(pressure)
-    mx, mx_idx = max_pressure_and_cycle(pressure)
-    mn = min_pressure(pressure)
+    # output per cycle pressure to CSV
+    write_pressure_csv(trace, pressure, "per_cycle_pressure.csv")
 
+    # average pressure over all instructions
+    avg = average_pressure(pressure)
+
+    # max pressure + where it occurs
+    mx, mx_idx = find_max_pressure(pressure)
     mx_cycle = trace[mx_idx]["Cycle"] if mx_idx is not None else None
     mx_pc = trace[mx_idx]["PC"] if mx_idx is not None else None
 
+    # min pressure + where it occurs
+    mn, mn_idx = find_min_pressure(pressure)
+    mn_cycle = trace[mn_idx]["Cycle"] if mn_idx is not None else None
+    mn_pc = trace[mn_idx]["PC"] if mn_idx is not None else None
+
+    # optional: plot pressure vs cycle for report statistic
+    # plot_pressure(pressure)
+
     print(f"Average pressure: {avg:.6f}")
     print(f"Max pressure: {mx} at cycle {mx_cycle} (pc={mx_pc})")
-    print(f"Min pressure: {mn}")
+    print(f"Min pressure: {mn} at cycle {mn_cycle} (pc={mn_pc})")
 
 if __name__ == "__main__":
     main()
